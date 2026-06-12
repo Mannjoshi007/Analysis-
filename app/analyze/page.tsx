@@ -279,6 +279,102 @@ export default function AnalyzePage() {
     }
   }
 
+  // ─── Download Report ──────────────────────────────────────────────────────
+  function downloadReport() {
+    if (!stats) return
+    const now = new Date().toLocaleString('en-IN')
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>KC DAQ Report — ${filename}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0f14;color:#e8e9ed;font-family:monospace;font-size:13px;padding:24px;line-height:1.6}
+h1{color:#ff5e1a;font-size:20px;margin-bottom:4px}
+h2{color:#ff5e1a;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
+.meta{color:#8b90a0;font-size:11px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px}
+.card{background:#161920;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px}
+.card .lbl{font-size:10px;color:#8b90a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.card .val{font-size:18px;font-weight:700}
+table{width:100%;border-collapse:collapse;margin-bottom:16px}
+td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+td:first-child{color:#8b90a0;width:55%}
+td:last-child{font-weight:600;text-align:right}
+.badge{display:inline-block;background:rgba(167,139,250,.15);color:#a78bfa;border:1px solid rgba(167,139,250,.3);padding:3px 14px;border-radius:20px;font-size:14px;font-weight:700;letter-spacing:.1em}
+.footer{color:#555b6e;font-size:11px;margin-top:24px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06)}
+</style>
+</head>
+<body>
+<h1>🚀 KC DAQ — Motor Analysis Report</h1>
+<div class="meta">File: ${filename} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; KC DAQ Motor Analysis Platform</div>
+
+<h2>Motor Classification</h2>
+<div style="margin-bottom:16px"><span class="badge">${stats.motorClass} Class</span></div>
+
+<h2>Key Performance Metrics</h2>
+<div class="grid">
+  <div class="card"><div class="lbl">Peak Thrust</div><div class="val" style="color:#ff5e1a">${fmt(stats.peak, 2)} N</div></div>
+  <div class="card"><div class="lbl">Avg Thrust</div><div class="val" style="color:#4ea8de">${fmt(stats.avgThrust, 2)} N</div></div>
+  <div class="card"><div class="lbl">Total Impulse</div><div class="val" style="color:#1fd1a0">${fmt(stats.totalImpulse, 3)} N·s</div></div>
+  <div class="card"><div class="lbl">Burn Time (t₅)</div><div class="val">${fmt(stats.burnTime5, 3)} s</div></div>
+  <div class="card"><div class="lbl">Time to Peak</div><div class="val">${fmt(stats.peakTime, 3)} s</div></div>
+  <div class="card"><div class="lbl">Est. Isp</div><div class="val" style="color:#a78bfa">${stats.isp} s</div></div>
+  <div class="card"><div class="lbl">Avg Temp</div><div class="val" style="color:#ffb347">${fmt(stats.avgTemp, 1)} °C</div></div>
+  <div class="card"><div class="lbl">Max Temp</div><div class="val" style="color:#ffb347">${fmt(stats.maxTemp, 1)} °C</div></div>
+</div>
+
+<h2>Full Performance Data</h2>
+<table>
+  <tr><td>Peak Thrust</td><td>${fmt(stats.peak, 3)} N</td></tr>
+  <tr><td>Average Thrust</td><td>${fmt(stats.avgThrust, 3)} N</td></tr>
+  <tr><td>Total Impulse</td><td>${fmt(stats.totalImpulse, 4)} N·s</td></tr>
+  <tr><td>Motor Class</td><td>${stats.motorClass}</td></tr>
+  <tr><td>Burn Duration (t₅)</td><td>${fmt(stats.burnTime5, 3)} s</td></tr>
+  <tr><td>Time to Peak Thrust</td><td>${fmt(stats.peakTime, 3)} s</td></tr>
+  <tr><td>Estimated Isp</td><td>${stats.isp} s (KNDX default)</td></tr>
+  <tr><td>Burn Profile</td><td>${stats.profileType}</td></tr>
+  <tr><td>Thrust-to-Weight (10 kg cell)</td><td>${fmt(stats.peak / 98.1, 3)}</td></tr>
+</table>
+
+<h2>Data Quality</h2>
+<table>
+  <tr><td>Total Samples</td><td>${stats.totalSamples}</td></tr>
+  <tr><td>Burn Phase Samples</td><td>${stats.burnSamples}</td></tr>
+  <tr><td>Sample Rate</td><td>${fmt(stats.sampleRate, 1)} Hz</td></tr>
+  <tr><td>Avg Sample Interval</td><td>${fmt(stats.avgDt, 1)} ms</td></tr>
+  <tr><td>Thrust Noise σ (burn)</td><td>${fmt(stats.bfStd, 3)} N</td></tr>
+  <tr><td>Signal-to-Noise Ratio</td><td>${fmt(stats.snrDb, 1)} dB</td></tr>
+  <tr><td>Pressure Sensor</td><td>⚠ Not connected</td></tr>
+  <tr><td>Load Cell Capacity</td><td>10 kg (98.1 N max)</td></tr>
+  <tr><td>Over-range?</td><td>${stats.peak > 98.1 ? '⚠ YES — ' + fmt(stats.peak, 1) + ' N exceeds capacity' : 'No (' + ((stats.peak / 98.1) * 100).toFixed(0) + '% of range)'}</td></tr>
+</table>
+
+<h2>Parameter Definitions</h2>
+<table>
+  <tr><td>Total Impulse (J)</td><td>∫F dt — area under thrust curve, determines motor class</td></tr>
+  <tr><td>Specific Impulse (Isp)</td><td>J / (m₀g₀) — efficiency metric in seconds; higher = better</td></tr>
+  <tr><td>Average Thrust (F̄)</td><td>J / t_burn — mean thrust over burn duration</td></tr>
+  <tr><td>Peak Thrust (Fp)</td><td>Maximum instantaneous thrust measured</td></tr>
+  <tr><td>Thrust Coefficient (CF)</td><td>F / (Pc × At) — nozzle efficiency, typically 1.2–1.8</td></tr>
+  <tr><td>Burn Rate (r)</td><td>r = a × Pc^n (Vieille's law) — mm/s</td></tr>
+  <tr><td>Kn (Klemmung)</td><td>As/At — pressure-thrust coupling, drives Pc</td></tr>
+  <tr><td>Progressive / Neutral / Regressive</td><td>dF/dt trend during mid-burn defines burn profile</td></tr>
+</table>
+
+<div class="footer">KC DAQ Motor Analysis System · ESP32 + Teensy · Load cell 10 kg · Thermocouple · No pressure data</div>
+</body>
+</html>`
+    const blob = new Blob([html], { type: 'text/html' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = filename.replace('.csv', '') + '_report.html'
+    a.click()
+    URL.revokeObjectURL(a.href)
+    showToast('Report downloaded!', 'success')
+  }
+
   // ─── File Handlers ────────────────────────────────────────────────────────
   function onCsvFile(file: File) {
     setFilename(file.name)
@@ -332,6 +428,9 @@ export default function AnalyzePage() {
           <label className="btn" style={{ cursor: 'pointer' }}>
             📎 Reference <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && onRefFile(e.target.files[0])} />
           </label>
+          <button className="btn orange" disabled={!hasData} onClick={downloadReport}>
+            ⬇ Download Report
+          </button>
           <button className="btn primary" disabled={!hasData} onClick={() => setSaveModal(true)}>
             ☁ Save to Cloud
           </button>
