@@ -58,7 +58,6 @@ export default function HomePage() {
         <p>All saved KC DAQ test sessions — click any card to view the full interactive report, or share via link.</p>
         <div className="hero-btns">
           <Link href="/analyze" className="btn primary" style={{ padding: '10px 24px', fontSize: '13px' }}>⚡ New Analysis</Link>
-          <a href="https://ynhdsdlkmkumcozccrdg.supabase.co" target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: '13px' }}>🗄 Supabase Dashboard</a>
         </div>
       </div>
 

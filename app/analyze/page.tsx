@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Chart, registerables } from 'chart.js'
-import { saveSession } from '@/lib/supabase'
+import { jsPDF } from 'jspdf'
 
 Chart.register(...registerables)
 
@@ -56,10 +56,6 @@ export default function AnalyzePage() {
   const [refName, setRefName] = useState('')
   const [activeTab, setActiveTab] = useState('dashboard')
   const [drag, setDrag] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveModal, setSaveModal] = useState(false)
-  const [sessionName, setSessionName] = useState('')
-  const [shareUrl, setShareUrl] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
 
   // Nozzle / grain calc state
@@ -160,7 +156,6 @@ export default function AnalyzePage() {
     setRaw(rows)
     setBurnData(burn)
     setStats(newStats)
-    setSessionName(filename.replace('.csv', '') || 'Motor Test')
     showToast(`Loaded ${rows.length} samples — ${classifyMotor(totalImpulse)} class motor`, 'success')
   }
 
@@ -263,116 +258,176 @@ export default function AnalyzePage() {
   const avgPc = pressPts.length > 0 ? pressPts.reduce((a, r) => a + r.Pc, 0) / pressPts.length : 0
   const expRatio = press.exitD > press.throatD ? Math.pow(press.exitD / press.throatD, 2) : 0
 
-  // ─── Save to Supabase ─────────────────────────────────────────────────────
-  async function handleSave() {
-    if (!stats || !raw.length) return
-    setSaving(true)
-    const result = await saveSession(sessionName || 'Motor Test', filename, stats as unknown as Record<string, unknown>, raw.map(r => ({ ...r })))
-    setSaving(false)
-    setSaveModal(false)
-    if (result) {
-      const url = `${window.location.origin}/report/${result.id}`
-      setShareUrl(url)
-      showToast('Saved! Share URL ready.', 'success')
-    } else {
-      showToast('Save failed — check Supabase connection', 'error')
-    }
-  }
-
-  // ─── Download Report ──────────────────────────────────────────────────────
-  function downloadReport() {
+  // ─── Download PDF Report ─────────────────────────────────────────────────
+  async function downloadReport() {
     if (!stats) return
-    const now = new Date().toLocaleString('en-IN')
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>KC DAQ Report — ${filename}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#0d0f14;color:#e8e9ed;font-family:monospace;font-size:13px;padding:24px;line-height:1.6}
-h1{color:#ff5e1a;font-size:20px;margin-bottom:4px}
-h2{color:#ff5e1a;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
-.meta{color:#8b90a0;font-size:11px;margin-bottom:20px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px}
-.card{background:#161920;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px}
-.card .lbl{font-size:10px;color:#8b90a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
-.card .val{font-size:18px;font-weight:700}
-table{width:100%;border-collapse:collapse;margin-bottom:16px}
-td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
-td:first-child{color:#8b90a0;width:55%}
-td:last-child{font-weight:600;text-align:right}
-.badge{display:inline-block;background:rgba(167,139,250,.15);color:#a78bfa;border:1px solid rgba(167,139,250,.3);padding:3px 14px;border-radius:20px;font-size:14px;font-weight:700;letter-spacing:.1em}
-.footer{color:#555b6e;font-size:11px;margin-top:24px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06)}
-</style>
-</head>
-<body>
-<h1>🚀 KC DAQ — Motor Analysis Report</h1>
-<div class="meta">File: ${filename} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; KC DAQ Motor Analysis Platform</div>
+    showToast('Generating PDF…', 'info')
+    // Load logo as base64
+    const logoRes = await fetch('/kailash-cosmos-logo.jpg')
+    const logoBlob = await logoRes.blob()
+    const logoB64: string = await new Promise(res => {
+      const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(logoBlob)
+    })
 
-<h2>Motor Classification</h2>
-<div style="margin-bottom:16px"><span class="badge">${stats.motorClass} Class</span></div>
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const W = 210, margin = 16
+    let y = 0
 
-<h2>Key Performance Metrics</h2>
-<div class="grid">
-  <div class="card"><div class="lbl">Peak Thrust</div><div class="val" style="color:#ff5e1a">${fmt(stats.peak, 2)} N</div></div>
-  <div class="card"><div class="lbl">Avg Thrust</div><div class="val" style="color:#4ea8de">${fmt(stats.avgThrust, 2)} N</div></div>
-  <div class="card"><div class="lbl">Total Impulse</div><div class="val" style="color:#1fd1a0">${fmt(stats.totalImpulse, 3)} N·s</div></div>
-  <div class="card"><div class="lbl">Burn Time (t₅)</div><div class="val">${fmt(stats.burnTime5, 3)} s</div></div>
-  <div class="card"><div class="lbl">Time to Peak</div><div class="val">${fmt(stats.peakTime, 3)} s</div></div>
-  <div class="card"><div class="lbl">Est. Isp</div><div class="val" style="color:#a78bfa">${stats.isp} s</div></div>
-  <div class="card"><div class="lbl">Avg Temp</div><div class="val" style="color:#ffb347">${fmt(stats.avgTemp, 1)} °C</div></div>
-  <div class="card"><div class="lbl">Max Temp</div><div class="val" style="color:#ffb347">${fmt(stats.maxTemp, 1)} °C</div></div>
-</div>
+    // Dark background
+    doc.setFillColor(13, 15, 20)
+    doc.rect(0, 0, W, 297, 'F')
 
-<h2>Full Performance Data</h2>
-<table>
-  <tr><td>Peak Thrust</td><td>${fmt(stats.peak, 3)} N</td></tr>
-  <tr><td>Average Thrust</td><td>${fmt(stats.avgThrust, 3)} N</td></tr>
-  <tr><td>Total Impulse</td><td>${fmt(stats.totalImpulse, 4)} N·s</td></tr>
-  <tr><td>Motor Class</td><td>${stats.motorClass}</td></tr>
-  <tr><td>Burn Duration (t₅)</td><td>${fmt(stats.burnTime5, 3)} s</td></tr>
-  <tr><td>Time to Peak Thrust</td><td>${fmt(stats.peakTime, 3)} s</td></tr>
-  <tr><td>Estimated Isp</td><td>${stats.isp} s (KNDX default)</td></tr>
-  <tr><td>Burn Profile</td><td>${stats.profileType}</td></tr>
-  <tr><td>Thrust-to-Weight (10 kg cell)</td><td>${fmt(stats.peak / 98.1, 3)}</td></tr>
-</table>
+    // Header band
+    doc.setFillColor(22, 25, 32)
+    doc.rect(0, 0, W, 42, 'F')
+    doc.setDrawColor(255, 94, 26)
+    doc.setLineWidth(0.5)
+    doc.line(0, 42, W, 42)
 
-<h2>Data Quality</h2>
-<table>
-  <tr><td>Total Samples</td><td>${stats.totalSamples}</td></tr>
-  <tr><td>Burn Phase Samples</td><td>${stats.burnSamples}</td></tr>
-  <tr><td>Sample Rate</td><td>${fmt(stats.sampleRate, 1)} Hz</td></tr>
-  <tr><td>Avg Sample Interval</td><td>${fmt(stats.avgDt, 1)} ms</td></tr>
-  <tr><td>Thrust Noise σ (burn)</td><td>${fmt(stats.bfStd, 3)} N</td></tr>
-  <tr><td>Signal-to-Noise Ratio</td><td>${fmt(stats.snrDb, 1)} dB</td></tr>
-  <tr><td>Pressure Sensor</td><td>⚠ Not connected</td></tr>
-  <tr><td>Load Cell Capacity</td><td>10 kg (98.1 N max)</td></tr>
-  <tr><td>Over-range?</td><td>${stats.peak > 98.1 ? '⚠ YES — ' + fmt(stats.peak, 1) + ' N exceeds capacity' : 'No (' + ((stats.peak / 98.1) * 100).toFixed(0) + '% of range)'}</td></tr>
-</table>
+    // Logo
+    doc.addImage(logoB64, 'JPEG', margin, 6, 28, 28)
 
-<h2>Parameter Definitions</h2>
-<table>
-  <tr><td>Total Impulse (J)</td><td>∫F dt — area under thrust curve, determines motor class</td></tr>
-  <tr><td>Specific Impulse (Isp)</td><td>J / (m₀g₀) — efficiency metric in seconds; higher = better</td></tr>
-  <tr><td>Average Thrust (F̄)</td><td>J / t_burn — mean thrust over burn duration</td></tr>
-  <tr><td>Peak Thrust (Fp)</td><td>Maximum instantaneous thrust measured</td></tr>
-  <tr><td>Thrust Coefficient (CF)</td><td>F / (Pc × At) — nozzle efficiency, typically 1.2–1.8</td></tr>
-  <tr><td>Burn Rate (r)</td><td>r = a × Pc^n (Vieille's law) — mm/s</td></tr>
-  <tr><td>Kn (Klemmung)</td><td>As/At — pressure-thrust coupling, drives Pc</td></tr>
-  <tr><td>Progressive / Neutral / Regressive</td><td>dF/dt trend during mid-burn defines burn profile</td></tr>
-</table>
+    // Title text
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.setTextColor(255, 94, 26)
+    doc.text('Kailash Cosmos', margin + 32, 16)
+    doc.setFontSize(10)
+    doc.setTextColor(139, 144, 160)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Motor Analysis Report  |  KC DAQ System', margin + 32, 23)
+    doc.text(`File: ${filename}`, margin + 32, 29)
+    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, margin + 32, 35)
 
-<div class="footer">KC DAQ Motor Analysis System · ESP32 + Teensy · Load cell 10 kg · Thermocouple · No pressure data</div>
-</body>
-</html>`
-    const blob = new Blob([html], { type: 'text/html' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = filename.replace('.csv', '') + '_report.html'
-    a.click()
-    URL.revokeObjectURL(a.href)
-    showToast('Report downloaded!', 'success')
+    // Motor class badge top-right
+    doc.setFillColor(40, 34, 60)
+    doc.setDrawColor(167, 139, 250)
+    doc.setLineWidth(0.4)
+    doc.roundedRect(W - margin - 32, 10, 30, 10, 2, 2, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.setTextColor(167, 139, 250)
+    doc.text(`${stats!.motorClass} Class`, W - margin - 17, 17.5, { align: 'center' })
+
+    y = 50
+
+    // ── Section title helper
+    const sectionTitle = (title: string) => {
+      if (y > 260) { doc.addPage(); doc.setFillColor(13,15,20); doc.rect(0,0,W,297,'F'); y = 16 }
+      doc.setFillColor(255, 94, 26)
+      doc.rect(margin, y, 3, 5, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(255, 94, 26)
+      doc.text(title.toUpperCase(), margin + 5, y + 4)
+      doc.setDrawColor(50, 54, 65)
+      doc.setLineWidth(0.3)
+      doc.line(margin, y + 6.5, W - margin, y + 6.5)
+      y += 10
+    }
+
+    // ── Key Stats grid (2 rows x 4 cols)
+    sectionTitle('Key Performance Metrics')
+    const statCards = [
+      { lbl: 'Peak Thrust',   val: `${fmt(stats!.peak, 2)} N`,           color: [255, 94, 26]   as [number,number,number] },
+      { lbl: 'Avg Thrust',    val: `${fmt(stats!.avgThrust, 2)} N`,       color: [78, 168, 222]  as [number,number,number] },
+      { lbl: 'Total Impulse', val: `${fmt(stats!.totalImpulse, 3)} N·s`,  color: [31, 209, 160]  as [number,number,number] },
+      { lbl: 'Burn Time',     val: `${fmt(stats!.burnTime5, 3)} s`,       color: [232, 233, 237] as [number,number,number] },
+      { lbl: 'Time to Peak',  val: `${fmt(stats!.peakTime, 3)} s`,        color: [232, 233, 237] as [number,number,number] },
+      { lbl: 'Est. Isp',      val: `${stats!.isp} s`,                     color: [167, 139, 250] as [number,number,number] },
+      { lbl: 'Avg Temp',      val: `${fmt(stats!.avgTemp, 1)} °C`,        color: [255, 179, 71]  as [number,number,number] },
+      { lbl: 'Burn Profile',  val: stats!.profileType,                    color: [0, 212, 200]   as [number,number,number] },
+    ]
+    const cardW = (W - margin * 2 - 9) / 4, cardH = 16
+    statCards.forEach((c, i) => {
+      const col = i % 4, row = Math.floor(i / 4)
+      const cx = margin + col * (cardW + 3), cy = y + row * (cardH + 3)
+      doc.setFillColor(22, 25, 32); doc.setDrawColor(37, 42, 53); doc.setLineWidth(0.3)
+      doc.roundedRect(cx, cy, cardW, cardH, 2, 2, 'FD')
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(139, 144, 160)
+      doc.text(c.lbl.toUpperCase(), cx + 3, cy + 5)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...c.color)
+      doc.text(c.val, cx + 3, cy + 12)
+    })
+    y += 2 * (cardH + 3) + 4
+
+    // ── KV row helper
+    const kvTable = (rows: [string, string][]) => {
+      rows.forEach((r, i) => {
+        if (y > 268) { doc.addPage(); doc.setFillColor(13,15,20); doc.rect(0,0,W,297,'F'); y = 16 }
+        doc.setFillColor(i % 2 === 0 ? 22 : 18, i % 2 === 0 ? 25 : 20, i % 2 === 0 ? 32 : 28)
+        doc.rect(margin, y, W - margin * 2, 6, 'F')
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(139, 144, 160)
+        doc.text(r[0], margin + 3, y + 4.2)
+        doc.setTextColor(232, 233, 237); doc.setFont('helvetica', 'bold')
+        doc.text(r[1], W - margin - 3, y + 4.2, { align: 'right' })
+        y += 6
+      })
+      y += 3
+    }
+
+    // Full Performance
+    sectionTitle('Full Performance Data')
+    kvTable([
+      ['Peak Thrust',                   `${fmt(stats!.peak, 3)} N`],
+      ['Average Thrust',                `${fmt(stats!.avgThrust, 3)} N`],
+      ['Total Impulse',                 `${fmt(stats!.totalImpulse, 4)} N·s`],
+      ['Motor Class',                   stats!.motorClass],
+      ['Burn Duration (t5)',             `${fmt(stats!.burnTime5, 3)} s`],
+      ['Time to Peak Thrust',           `${fmt(stats!.peakTime, 3)} s`],
+      ['Estimated Isp (KNDX)',          `${stats!.isp} s`],
+      ['Burn Profile',                  stats!.profileType],
+      ['Thrust-to-Weight (10 kg cell)', `${fmt(stats!.peak / 98.1, 3)}`],
+    ])
+
+    // Data Quality
+    sectionTitle('Data Quality & Signal Analysis')
+    kvTable([
+      ['Total Samples',          `${stats!.totalSamples}`],
+      ['Burn Phase Samples',     `${stats!.burnSamples}`],
+      ['Sample Rate',            `${fmt(stats!.sampleRate, 1)} Hz`],
+      ['Avg Sample Interval',    `${fmt(stats!.avgDt, 1)} ms`],
+      ['Thrust Noise sigma',     `${fmt(stats!.bfStd, 3)} N`],
+      ['Signal-to-Noise Ratio',  `${fmt(stats!.snrDb, 1)} dB`],
+      ['Pressure Sensor',        'Not connected (estimated only)'],
+      ['Load Cell Capacity',     '10 kg / 98.1 N max'],
+      ['Over-range?',            stats!.peak > 98.1 ? `YES — ${fmt(stats!.peak,1)} N exceeds capacity` : `No (${((stats!.peak/98.1)*100).toFixed(0)}% of range)`],
+    ])
+
+    // Parameter Definitions
+    sectionTitle('Parameter Definitions')
+    const defs: [string, string][] = [
+      ['Total Impulse (J)',               'Integral of F·dt — area under thrust curve'],
+      ['Specific Impulse (Isp)',          'J / (m0 × g0) — efficiency in seconds'],
+      ['Average Thrust',                  'J / t_burn — mean thrust over burn duration'],
+      ['Peak Thrust (Fp)',               'Maximum instantaneous thrust measured'],
+      ['Thrust Coefficient (CF)',        'F / (Pc × At) — nozzle efficiency 1.2–1.8'],
+      ['Burn Rate (r)',                   'r = a × Pc^n (Vieille law) — mm/s'],
+      ['Kn (Klemmung)',                  'As/At — pressure-thrust coupling'],
+      ['Progressive/Neutral/Regressive', 'dF/dt trend mid-burn defines profile type'],
+    ]
+    defs.forEach((r, i) => {
+      if (y > 268) { doc.addPage(); doc.setFillColor(13,15,20); doc.rect(0,0,W,297,'F'); y = 16 }
+      doc.setFillColor(i % 2 === 0 ? 22 : 18, i % 2 === 0 ? 25 : 20, i % 2 === 0 ? 32 : 28)
+      doc.rect(margin, y, W - margin * 2, 6, 'F')
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(139, 144, 160)
+      doc.text(r[0], margin + 3, y + 4.2)
+      doc.setTextColor(100, 180, 160); doc.setFont('helvetica', 'normal')
+      doc.text(r[1], W - margin - 3, y + 4.2, { align: 'right' })
+      y += 6
+    })
+
+    // Footer on last page
+    doc.setFillColor(22, 25, 32)
+    doc.rect(0, 285, W, 12, 'F')
+    doc.setDrawColor(255, 94, 26)
+    doc.setLineWidth(0.3)
+    doc.line(0, 285, W, 285)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(85, 91, 110)
+    doc.text('Kailash Cosmos  ·  KC DAQ Motor Analysis System  ·  ESP32 + Teensy  ·  10 kg Load Cell  ·  Thermocouple', W / 2, 291, { align: 'center' })
+
+    doc.save(filename.replace('.csv', '') + '_KC_Report.pdf')
+    showToast('PDF downloaded!', 'success')
   }
 
   // ─── File Handlers ────────────────────────────────────────────────────────
@@ -429,24 +484,14 @@ td:last-child{font-weight:600;text-align:right}
             📎 Reference <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && onRefFile(e.target.files[0])} />
           </label>
           <button className="btn orange" disabled={!hasData} onClick={downloadReport}>
-            ⬇ Download Report
-          </button>
-          <button className="btn primary" disabled={!hasData} onClick={() => setSaveModal(true)}>
-            ☁ Save to Cloud
+            ⬇ Download PDF
           </button>
           <Link href="/" className="btn">📋 History</Link>
         </div>
       </div>
 
-      {/* SHARE BAR */}
-      {shareUrl && (
-        <div className="share-bar" style={{ margin: '12px 24px 0' }}>
-          <span style={{ color: 'var(--green)', fontSize: '12px' }}>✓ Saved!</span>
-          <span className="share-url">{shareUrl}</span>
-          <button className="btn primary" style={{ padding: '4px 12px', fontSize: '11px' }} onClick={() => { navigator.clipboard.writeText(shareUrl); showToast('Link copied!', 'info') }}>Copy Link</button>
-          <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ padding: '4px 12px', fontSize: '11px' }}>Open ↗</a>
-        </div>
-      )}
+
+
 
       {/* TABS */}
       <div className="tabs">
@@ -731,21 +776,6 @@ td:last-child{font-weight:600;text-align:right}
 
       <div className="footer">KC DAQ Motor Analysis System · ESP32 + Teensy · Load cell 10 kg · Thermocouple · No pressure data</div>
 
-      {/* SAVE MODAL */}
-      {saveModal && (
-        <div className="modal-overlay" onClick={() => setSaveModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>☁ Save to Cloud</h3>
-            <p>Give this test session a name. It will be saved to Supabase and a shareable link will be generated.</p>
-            <input className="modal-inp" value={sessionName} onChange={e => setSessionName(e.target.value)}
-              placeholder="e.g. KNDX Test #3 — June 2026" onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus />
-            <div className="modal-btns">
-              <button className="btn" onClick={() => setSaveModal(false)}>Cancel</button>
-              <button className="btn primary" onClick={handleSave} disabled={saving}>{saving ? '⏳ Saving…' : '☁ Save & Share'}</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* TOAST */}
       {toast && <div className={`toast ${toast.type}`}>{toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : 'ℹ'} {toast.msg}</div>}
