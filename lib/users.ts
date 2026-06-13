@@ -12,8 +12,9 @@ export interface User {
 
 export const ALLOWED_USERS: User[] = [
   // ── Add your users below ─────────────────────────────────────────────────
-  { email: 'admin@kailashcosmos.com',  password: 'KC@Admin2026',  name: 'Admin' },
-  // { email: 'user2@example.com',     password: 'pass2',         name: 'User 2' },
-  // { email: 'user3@example.com',     password: 'pass3',         name: 'User 3' },
+  { email: 'admin@kailashcosmos.com',      password: 'KC@Admin2026',  name: 'Admin'     },
+  { email: 'engg@kailashcosmos.com',       password: 'KC#Engg7742',   name: 'Engineering' },
+  { email: 'marketing@kailashcosmos.com',  password: 'KC#Mktg3391',   name: 'Marketing' },
+  // { email: 'user@example.com',          password: 'pass',          name: 'Name'      },
   // ─────────────────────────────────────────────────────────────────────────
 ]
