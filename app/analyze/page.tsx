@@ -1,6 +1,6 @@
-'use client'
+﻿'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Chart, registerables } from 'chart.js'
 import { jsPDF } from 'jspdf'
 
@@ -57,6 +57,12 @@ export default function AnalyzePage() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [drag, setDrag] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
+  const router = useRouter()
+
+  async function handleLogout() {
+    await fetch('/api/auth', { method: 'DELETE' })
+    router.push('/login')
+  }
 
   // Nozzle / grain calc state
   const [nozzle, setNozzle] = useState({ thrust: 80, pc: 3.5, cf: 1.3, exp: 3.0 })
@@ -258,173 +264,178 @@ export default function AnalyzePage() {
   const avgPc = pressPts.length > 0 ? pressPts.reduce((a, r) => a + r.Pc, 0) / pressPts.length : 0
   const expRatio = press.exitD > press.throatD ? Math.pow(press.exitD / press.throatD, 2) : 0
 
-  // ─── Download PDF Report ─────────────────────────────────────────────────
-  async function downloadReport() {
+// Print-friendly PDF generator for KC DAQ
+// White background, high contrast, prints perfectly in B&W
+
+async function downloadReport() {
     if (!stats) return
-    showToast('Generating PDF…', 'info')
-    // Load logo as base64
+    showToast('Generating PDF...', 'info')
+
     const logoRes = await fetch('/kailash-cosmos-logo.jpg')
     const logoBlob = await logoRes.blob()
-    const logoB64: string = await new Promise(res => {
+    const logoB64 = await new Promise<string>(res => {
       const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(logoBlob)
     })
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const W = 210, margin = 16
+    const W = 210, M = 14
     let y = 0
 
-    // Dark background
-    doc.setFillColor(13, 15, 20)
+    // White page
+    doc.setFillColor(255, 255, 255)
     doc.rect(0, 0, W, 297, 'F')
 
-    // Header band
-    doc.setFillColor(22, 25, 32)
-    doc.rect(0, 0, W, 42, 'F')
-    doc.setDrawColor(255, 94, 26)
-    doc.setLineWidth(0.5)
-    doc.line(0, 42, W, 42)
+    // Orange header bar (prints as dark in B&W)
+    doc.setFillColor(220, 70, 10)
+    doc.rect(0, 0, W, 38, 'F')
 
     // Logo
-    doc.addImage(logoB64, 'JPEG', margin, 6, 28, 28)
+    doc.addImage(logoB64, 'JPEG', M, 5, 26, 26)
 
-    // Title text
+    // Company name - uppercase bold (Bank Gothic approximation)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(18)
-    doc.setTextColor(255, 94, 26)
-    doc.text('Kailash Cosmos', margin + 32, 16)
-    doc.setFontSize(10)
-    doc.setTextColor(139, 144, 160)
+    doc.setFontSize(22)
+    doc.setTextColor(255, 255, 255)
+    doc.text('KAILASH COSMOS', M + 30, 17)
+
     doc.setFont('helvetica', 'normal')
-    doc.text('Motor Analysis Report  |  KC DAQ System', margin + 32, 23)
-    doc.text(`File: ${filename}`, margin + 32, 29)
-    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, margin + 32, 35)
+    doc.setFontSize(9)
+    doc.setTextColor(255, 220, 200)
+    doc.text('Motor Analysis Report  -  KC DAQ System', M + 30, 24)
+    doc.text('File: ' + filename + '  -  ' + new Date().toLocaleString('en-IN'), M + 30, 30)
 
-    // Motor class badge top-right
-    doc.setFillColor(40, 34, 60)
-    doc.setDrawColor(167, 139, 250)
-    doc.setLineWidth(0.4)
-    doc.roundedRect(W - margin - 32, 10, 30, 10, 2, 2, 'FD')
+    // Motor class badge
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(255, 255, 255)
+    doc.roundedRect(W - M - 30, 8, 28, 12, 2, 2, 'FD')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
-    doc.setTextColor(167, 139, 250)
-    doc.text(`${stats!.motorClass} Class`, W - margin - 17, 17.5, { align: 'center' })
+    doc.setFontSize(12)
+    doc.setTextColor(200, 50, 5)
+    doc.text(stats!.motorClass, W - M - 16, 17, { align: 'center' })
+    doc.setFontSize(7)
+    doc.setTextColor(100, 30, 5)
+    doc.text('CLASS', W - M - 16, 21, { align: 'center' })
 
-    y = 50
+    y = 46
 
-    // ── Section title helper
-    const sectionTitle = (title: string) => {
-      if (y > 260) { doc.addPage(); doc.setFillColor(13,15,20); doc.rect(0,0,W,297,'F'); y = 16 }
-      doc.setFillColor(255, 94, 26)
-      doc.rect(margin, y, 3, 5, 'F')
+    const section = (title: string) => {
+      if (y > 262) { doc.addPage(); doc.setFillColor(255,255,255); doc.rect(0,0,W,297,'F'); y = 14 }
+      doc.setFillColor(220, 70, 10)
+      doc.rect(M, y, W - M * 2, 7, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(255, 255, 255)
+      doc.text(title.toUpperCase(), M + 3, y + 5)
+      y += 7
+    }
+
+    // 8 stat cards
+    section('Key Performance Metrics')
+    y += 2
+    const cards = [
+      { l: 'PEAK THRUST',   v: fmt(stats!.peak, 2) + ' N'             },
+      { l: 'AVG THRUST',    v: fmt(stats!.avgThrust, 2) + ' N'         },
+      { l: 'TOTAL IMPULSE', v: fmt(stats!.totalImpulse, 3) + ' N.s'   },
+      { l: 'BURN TIME',     v: fmt(stats!.burnTime5, 3) + ' s'         },
+      { l: 'TIME TO PEAK',  v: fmt(stats!.peakTime, 3) + ' s'          },
+      { l: 'EST. ISP',      v: stats!.isp + ' s'                       },
+      { l: 'AVG TEMP',      v: fmt(stats!.avgTemp, 1) + ' C'           },
+      { l: 'BURN PROFILE',  v: stats!.profileType                      },
+    ]
+    const cW = (W - M * 2 - 9) / 4, cH = 18
+    cards.forEach((c, i) => {
+      const col = i % 4, row = Math.floor(i / 4)
+      const cx = M + col * (cW + 3), cy = y + row * (cH + 3)
+      doc.setFillColor(253, 248, 244)
+      doc.setDrawColor(200, 70, 10)
+      doc.setLineWidth(0.5)
+      doc.roundedRect(cx, cy, cW, cH, 2, 2, 'FD')
+      doc.setFillColor(220, 70, 10)
+      doc.rect(cx, cy, 2.5, cH, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6.5)
+      doc.setTextColor(120, 50, 10)
+      doc.text(c.l, cx + 5, cy + 6)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(15, 15, 15)
+      doc.text(c.v, cx + 5, cy + 14)
+    })
+    y += 2 * (cH + 3) + 4
+
+    const kvRow = (label: string, value: string, shade: boolean) => {
+      if (y > 270) { doc.addPage(); doc.setFillColor(255,255,255); doc.rect(0,0,W,297,'F'); y = 14 }
+      doc.setFillColor(shade ? 248 : 255, shade ? 243 : 255, shade ? 238 : 255)
+      doc.rect(M, y, W - M * 2, 6.5, 'F')
+      doc.setDrawColor(220, 200, 190)
+      doc.setLineWidth(0.2)
+      doc.line(M, y + 6.5, W - M, y + 6.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(80, 60, 50)
+      doc.text(label, M + 3, y + 4.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(20, 20, 20)
+      doc.text(value, W - M - 3, y + 4.5, { align: 'right' })
+      y += 6.5
+    }
+
+    section('Full Performance Data')
+    y += 1
+    ;[
+      ['Peak Thrust',                  fmt(stats!.peak, 3) + ' N'],
+      ['Average Thrust',               fmt(stats!.avgThrust, 3) + ' N'],
+      ['Total Impulse',                fmt(stats!.totalImpulse, 4) + ' N.s'],
+      ['Motor Class',                  stats!.motorClass],
+      ['Burn Duration (t5)',           fmt(stats!.burnTime5, 3) + ' s'],
+      ['Time to Peak Thrust',          fmt(stats!.peakTime, 3) + ' s'],
+      ['Estimated Isp (KNDX)',         stats!.isp + ' s'],
+      ['Burn Profile',                 stats!.profileType],
+      ['Load Cell Usage',              ((stats!.peak / 98.1) * 100).toFixed(1) + '% of 98.1 N'],
+    ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
+    y += 3
+
+    section('Data Quality & Signal Analysis')
+    y += 1
+    ;[
+      ['Total Samples',         String(stats!.totalSamples)],
+      ['Burn Phase Samples',    String(stats!.burnSamples)],
+      ['Sample Rate',           fmt(stats!.sampleRate, 1) + ' Hz'],
+      ['Avg Sample Interval',   fmt(stats!.avgDt, 1) + ' ms'],
+      ['Thrust Noise sigma',    fmt(stats!.bfStd, 3) + ' N'],
+      ['Signal-to-Noise Ratio', fmt(stats!.snrDb, 1) + ' dB'],
+      ['Pressure Sensor',       'Not connected - estimated from model'],
+      ['Load Cell',             '10 kg / 98.1 N max'],
+      ['Over-range?',           stats!.peak > 98.1
+        ? 'YES - ' + fmt(stats!.peak, 1) + ' N exceeds 98.1 N'
+        : 'No - ' + ((stats!.peak / 98.1) * 100).toFixed(0) + '% of range'],
+    ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
+    y += 3
+
+    section('Parameter Definitions')
+    y += 1
+    ;[
+      ['Total Impulse (J)',        'Integral F.dt - area under thrust curve, determines motor class'],
+      ['Specific Impulse (Isp)',   'J / (m0 x g0) - efficiency in seconds; higher = better'],
+      ['Average Thrust',           'J / t_burn - mean thrust over burn duration'],
+      ['Peak Thrust (Fp)',         'Maximum instantaneous thrust recorded'],
+      ['Thrust Coefficient (CF)',  'F / (Pc x At) - nozzle efficiency, typical 1.2-1.8'],
+      ['Burn Rate (r)',            'r = a x Pc^n (Vieille law) - mm/s'],
+      ['Kn (Klemmung)',            'As/At - burning-surface to throat-area ratio'],
+      ['Progressive/Neutral/Regressive', 'dF/dt trend during mid-burn defines profile type'],
+    ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
+
+    // Footer on every page
+    const totalPg = (doc as unknown as { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages()
+    for (let p = 1; p <= totalPg; p++) {
+      doc.setPage(p)
+      doc.setFillColor(220, 70, 10)
+      doc.rect(0, 288, W, 9, 'F')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(9)
-      doc.setTextColor(255, 94, 26)
-      doc.text(title.toUpperCase(), margin + 5, y + 4)
-      doc.setDrawColor(50, 54, 65)
-      doc.setLineWidth(0.3)
-      doc.line(margin, y + 6.5, W - margin, y + 6.5)
-      y += 10
+      doc.setTextColor(255, 255, 255)
+      doc.text('KAILASH COSMOS', W / 2, 293.5, { align: 'center' })
     }
-
-    // ── Key Stats grid (2 rows x 4 cols)
-    sectionTitle('Key Performance Metrics')
-    const statCards = [
-      { lbl: 'Peak Thrust',   val: `${fmt(stats!.peak, 2)} N`,           color: [255, 94, 26]   as [number,number,number] },
-      { lbl: 'Avg Thrust',    val: `${fmt(stats!.avgThrust, 2)} N`,       color: [78, 168, 222]  as [number,number,number] },
-      { lbl: 'Total Impulse', val: `${fmt(stats!.totalImpulse, 3)} N·s`,  color: [31, 209, 160]  as [number,number,number] },
-      { lbl: 'Burn Time',     val: `${fmt(stats!.burnTime5, 3)} s`,       color: [232, 233, 237] as [number,number,number] },
-      { lbl: 'Time to Peak',  val: `${fmt(stats!.peakTime, 3)} s`,        color: [232, 233, 237] as [number,number,number] },
-      { lbl: 'Est. Isp',      val: `${stats!.isp} s`,                     color: [167, 139, 250] as [number,number,number] },
-      { lbl: 'Avg Temp',      val: `${fmt(stats!.avgTemp, 1)} °C`,        color: [255, 179, 71]  as [number,number,number] },
-      { lbl: 'Burn Profile',  val: stats!.profileType,                    color: [0, 212, 200]   as [number,number,number] },
-    ]
-    const cardW = (W - margin * 2 - 9) / 4, cardH = 16
-    statCards.forEach((c, i) => {
-      const col = i % 4, row = Math.floor(i / 4)
-      const cx = margin + col * (cardW + 3), cy = y + row * (cardH + 3)
-      doc.setFillColor(22, 25, 32); doc.setDrawColor(37, 42, 53); doc.setLineWidth(0.3)
-      doc.roundedRect(cx, cy, cardW, cardH, 2, 2, 'FD')
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(139, 144, 160)
-      doc.text(c.lbl.toUpperCase(), cx + 3, cy + 5)
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...c.color)
-      doc.text(c.val, cx + 3, cy + 12)
-    })
-    y += 2 * (cardH + 3) + 4
-
-    // ── KV row helper
-    const kvTable = (rows: [string, string][]) => {
-      rows.forEach((r, i) => {
-        if (y > 268) { doc.addPage(); doc.setFillColor(13,15,20); doc.rect(0,0,W,297,'F'); y = 16 }
-        doc.setFillColor(i % 2 === 0 ? 22 : 18, i % 2 === 0 ? 25 : 20, i % 2 === 0 ? 32 : 28)
-        doc.rect(margin, y, W - margin * 2, 6, 'F')
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(139, 144, 160)
-        doc.text(r[0], margin + 3, y + 4.2)
-        doc.setTextColor(232, 233, 237); doc.setFont('helvetica', 'bold')
-        doc.text(r[1], W - margin - 3, y + 4.2, { align: 'right' })
-        y += 6
-      })
-      y += 3
-    }
-
-    // Full Performance
-    sectionTitle('Full Performance Data')
-    kvTable([
-      ['Peak Thrust',                   `${fmt(stats!.peak, 3)} N`],
-      ['Average Thrust',                `${fmt(stats!.avgThrust, 3)} N`],
-      ['Total Impulse',                 `${fmt(stats!.totalImpulse, 4)} N·s`],
-      ['Motor Class',                   stats!.motorClass],
-      ['Burn Duration (t5)',             `${fmt(stats!.burnTime5, 3)} s`],
-      ['Time to Peak Thrust',           `${fmt(stats!.peakTime, 3)} s`],
-      ['Estimated Isp (KNDX)',          `${stats!.isp} s`],
-      ['Burn Profile',                  stats!.profileType],
-      ['Thrust-to-Weight (10 kg cell)', `${fmt(stats!.peak / 98.1, 3)}`],
-    ])
-
-    // Data Quality
-    sectionTitle('Data Quality & Signal Analysis')
-    kvTable([
-      ['Total Samples',          `${stats!.totalSamples}`],
-      ['Burn Phase Samples',     `${stats!.burnSamples}`],
-      ['Sample Rate',            `${fmt(stats!.sampleRate, 1)} Hz`],
-      ['Avg Sample Interval',    `${fmt(stats!.avgDt, 1)} ms`],
-      ['Thrust Noise sigma',     `${fmt(stats!.bfStd, 3)} N`],
-      ['Signal-to-Noise Ratio',  `${fmt(stats!.snrDb, 1)} dB`],
-      ['Pressure Sensor',        'Not connected (estimated only)'],
-      ['Load Cell Capacity',     '10 kg / 98.1 N max'],
-      ['Over-range?',            stats!.peak > 98.1 ? `YES — ${fmt(stats!.peak,1)} N exceeds capacity` : `No (${((stats!.peak/98.1)*100).toFixed(0)}% of range)`],
-    ])
-
-    // Parameter Definitions
-    sectionTitle('Parameter Definitions')
-    const defs: [string, string][] = [
-      ['Total Impulse (J)',               'Integral of F·dt — area under thrust curve'],
-      ['Specific Impulse (Isp)',          'J / (m0 × g0) — efficiency in seconds'],
-      ['Average Thrust',                  'J / t_burn — mean thrust over burn duration'],
-      ['Peak Thrust (Fp)',               'Maximum instantaneous thrust measured'],
-      ['Thrust Coefficient (CF)',        'F / (Pc × At) — nozzle efficiency 1.2–1.8'],
-      ['Burn Rate (r)',                   'r = a × Pc^n (Vieille law) — mm/s'],
-      ['Kn (Klemmung)',                  'As/At — pressure-thrust coupling'],
-      ['Progressive/Neutral/Regressive', 'dF/dt trend mid-burn defines profile type'],
-    ]
-    defs.forEach((r, i) => {
-      if (y > 268) { doc.addPage(); doc.setFillColor(13,15,20); doc.rect(0,0,W,297,'F'); y = 16 }
-      doc.setFillColor(i % 2 === 0 ? 22 : 18, i % 2 === 0 ? 25 : 20, i % 2 === 0 ? 32 : 28)
-      doc.rect(margin, y, W - margin * 2, 6, 'F')
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(139, 144, 160)
-      doc.text(r[0], margin + 3, y + 4.2)
-      doc.setTextColor(100, 180, 160); doc.setFont('helvetica', 'normal')
-      doc.text(r[1], W - margin - 3, y + 4.2, { align: 'right' })
-      y += 6
-    })
-
-    // Footer on last page
-    doc.setFillColor(22, 25, 32)
-    doc.rect(0, 285, W, 12, 'F')
-    doc.setDrawColor(255, 94, 26)
-    doc.setLineWidth(0.3)
-    doc.line(0, 285, W, 285)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(85, 91, 110)
-    doc.text('Kailash Cosmos  ·  KC DAQ Motor Analysis System  ·  ESP32 + Teensy  ·  10 kg Load Cell  ·  Thermocouple', W / 2, 291, { align: 'center' })
 
     doc.save(filename.replace('.csv', '') + '_KC_Report.pdf')
     showToast('PDF downloaded!', 'success')
@@ -473,7 +484,7 @@ export default function AnalyzePage() {
       {/* HEADER */}
       <div className="hdr">
         <div className="hdr-left">
-          <Link href="/" className="logo">🚀 KC DAQ <span>Motor Analysis</span></Link>
+          <span className="logo">🚀 KC DAQ <span>Motor Analysis</span></span>
           <span className={`badge ${hasData ? 'ok' : 'warn'}`}>{hasData ? 'DATA LOADED' : 'NO DATA'}</span>
         </div>
         <div className="hdr-right">
@@ -486,7 +497,7 @@ export default function AnalyzePage() {
           <button className="btn orange" disabled={!hasData} onClick={downloadReport}>
             ⬇ Download PDF
           </button>
-          <Link href="/" className="btn">📋 History</Link>
+          <button className="btn" onClick={handleLogout}>⎋ Logout</button>
         </div>
       </div>
 
