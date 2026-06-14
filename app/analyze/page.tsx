@@ -50,10 +50,8 @@ function fmt(n: number, d = 3) { return isNaN(n) ? '--' : n.toFixed(d) }
 export default function AnalyzePage() {
   const [raw, setRaw] = useState<RawRow[]>([])
   const [burnData, setBurnData] = useState<RawRow[]>([])
-  const [refData, setRefData] = useState<{ t: number; f: number }[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [filename, setFilename] = useState('')
-  const [refName, setRefName] = useState('')
   const [activeTab, setActiveTab] = useState('dashboard')
   const [drag, setDrag] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
@@ -103,22 +101,6 @@ export default function AnalyzePage() {
     processData(rows)
   }
 
-  function parseRef(text: string, fname: string) {
-    const lines = text.trim().split('\n')
-    const pts: { t: number; f: number }[] = []
-    let t0: number | null = null
-    for (const line of lines) {
-      const p = line.split(',')
-      if (p.length < 2) continue
-      const tv = parseFloat(p[0]), fv = parseFloat(p[1])
-      if (isNaN(tv) || isNaN(fv)) continue
-      if (t0 === null) t0 = tv
-      pts.push({ t: tv - t0!, f: fv })
-    }
-    setRefData(pts)
-    setRefName(fname)
-    showToast(`Reference loaded: ${fname}`, 'info')
-  }
 
   // ─── Process Data ──────────────────────────────────────────────────────────
   function processData(rows: RawRow[]) {
@@ -202,19 +184,13 @@ export default function AnalyzePage() {
     const allTemp = raw.map(r => r.temp)
     const allImp = raw.map(r => r.impulse)
 
-    const refDs = refData.length > 0 ? [{
-      label: 'Reference', data: refData.map(r => r.f),
-      borderColor: 'rgba(255,255,255,.6)', borderWidth: 1.5,
-      borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false
-    }] : []
-
     const thrustDs = { label: 'Thrust', data: bf, borderColor: '#ff5e1a', borderWidth: 2, pointRadius: 0, tension: 0.25, fill: true, backgroundColor: 'rgba(255,94,26,.07)' }
 
     setTimeout(() => {
-      mkChart('main-thrust-chart', { type: 'line', data: { labels: bt, datasets: [thrustDs, ...refDs] }, options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: 'Time (s)', color: '#8b90a0', font: { size: 10 } } }, y: { ...chartDefaults.scales.y, title: { display: true, text: 'N', color: '#8b90a0', font: { size: 10 } } } } } })
+      mkChart('main-thrust-chart', { type: 'line', data: { labels: bt, datasets: [thrustDs] }, options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: 'Time (s)', color: '#8b90a0', font: { size: 10 } } }, y: { ...chartDefaults.scales.y, title: { display: true, text: 'N', color: '#8b90a0', font: { size: 10 } } } } } })
       mkChart('temp-chart', { type: 'line', data: { labels: allT, datasets: [{ label: 'Temp', data: allTemp, borderColor: '#ffb347', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, backgroundColor: 'rgba(255,179,71,.07)' }] }, options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: 'Time (s)', color: '#8b90a0', font: { size: 10 } } }, y: { ...chartDefaults.scales.y, title: { display: true, text: '°C', color: '#8b90a0', font: { size: 10 } } } } } })
       mkChart('impulse-chart', { type: 'line', data: { labels: allT, datasets: [{ label: 'Impulse', data: allImp, borderColor: '#1fd1a0', borderWidth: 2, pointRadius: 0, tension: 0.25, fill: true, backgroundColor: 'rgba(31,209,160,.07)' }] }, options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: 'Time (s)', color: '#8b90a0', font: { size: 10 } } }, y: { ...chartDefaults.scales.y, title: { display: true, text: 'N·s', color: '#8b90a0', font: { size: 10 } } } } } })
-      mkChart('full-thrust-chart', { type: 'line', data: { labels: bt, datasets: [thrustDs, ...refDs] }, options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: 'Time (s)', color: '#8b90a0', font: { size: 10 } } }, y: { ...chartDefaults.scales.y, title: { display: true, text: 'N', color: '#8b90a0', font: { size: 10 } } } } } })
+      mkChart('full-thrust-chart', { type: 'line', data: { labels: bt, datasets: [thrustDs] }, options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: 'Time (s)', color: '#8b90a0', font: { size: 10 } } }, y: { ...chartDefaults.scales.y, title: { display: true, text: 'N', color: '#8b90a0', font: { size: 10 } } } } } })
 
       const dfdt = [0, ...burnData.slice(1).map((r, i) => {
         const dt = r.t - burnData[i].t; return dt > 0 ? (r.force - burnData[i].force) / dt : 0
@@ -225,7 +201,7 @@ export default function AnalyzePage() {
       const dts2 = raw.slice(1).map((r, i) => r.t_ms - raw[i].t_ms)
       mkChart('dt-chart', { type: 'line', data: { labels: raw.slice(1).map(r => r.t.toFixed(3)), datasets: [{ label: 'Δt', data: dts2, borderColor: '#1fd1a0', borderWidth: 1, pointRadius: 0, tension: 0.1, fill: false }] }, options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: 'Time (s)', color: '#8b90a0', font: { size: 10 } } }, y: { ...chartDefaults.scales.y, title: { display: true, text: 'ms', color: '#8b90a0', font: { size: 10 } } } } } })
     }, 50)
-  }, [raw, burnData, stats, refData, activeTab])
+  }, [raw, burnData, stats, activeTab])
 
   // ─── Pressure Chart ────────────────────────────────────────────────────────
   function calcPressureChart() {
@@ -601,11 +577,7 @@ async function downloadReport() {
     reader.onload = e => parseCSV(e.target?.result as string)
     reader.readAsText(file)
   }
-  function onRefFile(file: File) {
-    const reader = new FileReader()
-    reader.onload = e => parseRef(e.target?.result as string, file.name)
-    reader.readAsText(file)
-  }
+
 
   const hasData = !!stats
 
@@ -644,9 +616,7 @@ async function downloadReport() {
           <label className="btn" style={{ cursor: 'pointer' }}>
             📂 Load CSV <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && onCsvFile(e.target.files[0])} />
           </label>
-          <label className="btn" style={{ cursor: 'pointer' }}>
-            📎 Reference <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && onRefFile(e.target.files[0])} />
-          </label>
+
           <button className="btn orange" disabled={!hasData} onClick={downloadReport}>
             ⬇ Download PDF
           </button>
@@ -725,7 +695,7 @@ async function downloadReport() {
                 <span className="chart-title">Thrust Curve</span>
                 <div className="legend">
                   <span className="leg-item"><span className="leg-dot" style={{ background: 'var(--orange)' }} />Thrust (N)</span>
-                  {refData.length > 0 && <span className="leg-item"><span className="leg-dot" style={{ background: 'rgba(255,255,255,.7)' }} />Reference</span>}
+
                 </div>
               </div>
               <div className="chart-wrap"><canvas id="main-thrust-chart" /></div>
@@ -745,9 +715,7 @@ async function downloadReport() {
             <div className="chart-panel">
               <div className="chart-hdr">
                 <span className="chart-title">Full Thrust Curve — Burn Region</span>
-                <div className="ref-controls">
-                  {refName ? <><span style={{ fontSize: '11px', color: 'var(--tx2)' }}>✓ {refName}</span><button className="btn" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => { setRefData([]); setRefName('') }}>✕ Remove</button></> : <span style={{ fontSize: '11px', color: 'var(--tx2)' }}>No reference loaded</span>}
-                </div>
+
               </div>
               <div className="chart-wrap-tall"><canvas id="full-thrust-chart" /></div>
             </div>
