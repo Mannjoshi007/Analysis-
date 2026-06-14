@@ -57,6 +57,9 @@ export default function AnalyzePage() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [drag, setDrag] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
+  const [massFuel,  setMassFuel]  = useState('')
+  const [massBody,  setMassBody]  = useState('')
+  const [massMotor, setMassMotor] = useState('')
   const router = useRouter()
 
   async function handleLogout() {
@@ -264,9 +267,7 @@ export default function AnalyzePage() {
   const avgPc = pressPts.length > 0 ? pressPts.reduce((a, r) => a + r.Pc, 0) / pressPts.length : 0
   const expRatio = press.exitD > press.throatD ? Math.pow(press.exitD / press.throatD, 2) : 0
 
-// Print-friendly PDF generator for KC DAQ
-// White background, high contrast, prints perfectly in B&W
-
+// Print-friendly PDF generator — thrust curve + mass budget, no definitions
 async function downloadReport() {
     if (!stats) return
     showToast('Generating PDF...', 'info')
@@ -285,39 +286,43 @@ async function downloadReport() {
     doc.setFillColor(255, 255, 255)
     doc.rect(0, 0, W, 297, 'F')
 
-    // Orange header bar (prints as dark in B&W)
+    // Orange header bar
     doc.setFillColor(220, 70, 10)
-    doc.rect(0, 0, W, 38, 'F')
+    doc.rect(0, 0, W, 40, 'F')
 
     // Logo
-    doc.addImage(logoB64, 'JPEG', M, 5, 26, 26)
+    doc.addImage(logoB64, 'JPEG', M, 6, 26, 26)
 
-    // Company name - uppercase bold (Bank Gothic approximation)
+    // Company name
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(22)
     doc.setTextColor(255, 255, 255)
-    doc.text('KAILASH COSMOS', M + 30, 17)
+    doc.text('KAILASH COSMOS', M + 30, 18)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(255, 220, 200)
-    doc.text('Motor Analysis Report  -  KC DAQ System', M + 30, 24)
-    doc.text('File: ' + filename + '  -  ' + new Date().toLocaleString('en-IN'), M + 30, 30)
+    doc.text('Motor Analysis Report  -  KC DAQ System', M + 30, 25)
+    doc.text('File: ' + filename + '  -  ' + new Date().toLocaleString('en-IN'), M + 30, 31)
 
-    // Motor class badge
+    // Motor class badge — properly centred in top-right
+    const badgeW = 32, badgeH = 16
+    const badgeX = W - M - badgeW, badgeY = 12
+    const badgeCx = badgeX + badgeW / 2
     doc.setFillColor(255, 255, 255)
     doc.setDrawColor(255, 255, 255)
-    doc.roundedRect(W - M - 30, 8, 28, 12, 2, 2, 'FD')
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 2, 2, 'FD')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
+    doc.setFontSize(14)
     doc.setTextColor(200, 50, 5)
-    doc.text(stats!.motorClass, W - M - 16, 17, { align: 'center' })
-    doc.setFontSize(7)
-    doc.setTextColor(100, 30, 5)
-    doc.text('CLASS', W - M - 16, 21, { align: 'center' })
+    doc.text(stats!.motorClass, badgeCx, badgeY + 9, { align: 'center' })
+    doc.setFontSize(6.5)
+    doc.setTextColor(140, 50, 20)
+    doc.text('CLASS', badgeCx, badgeY + 14, { align: 'center' })
 
-    y = 46
+    y = 48
 
+    // ── Section header helper
     const section = (title: string) => {
       if (y > 262) { doc.addPage(); doc.setFillColor(255,255,255); doc.rect(0,0,W,297,'F'); y = 14 }
       doc.setFillColor(220, 70, 10)
@@ -329,18 +334,36 @@ async function downloadReport() {
       y += 7
     }
 
-    // 8 stat cards
+    // ── KV row helper
+    const kvRow = (label: string, value: string, shade: boolean) => {
+      if (y > 270) { doc.addPage(); doc.setFillColor(255,255,255); doc.rect(0,0,W,297,'F'); y = 14 }
+      doc.setFillColor(shade ? 248 : 255, shade ? 243 : 255, shade ? 238 : 255)
+      doc.rect(M, y, W - M * 2, 6.5, 'F')
+      doc.setDrawColor(220, 200, 190)
+      doc.setLineWidth(0.2)
+      doc.line(M, y + 6.5, W - M, y + 6.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(80, 60, 50)
+      doc.text(label, M + 3, y + 4.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(20, 20, 20)
+      doc.text(value, W - M - 3, y + 4.5, { align: 'right' })
+      y += 6.5
+    }
+
+    // ── 8 stat cards (2 rows x 4 cols)
     section('Key Performance Metrics')
     y += 2
     const cards = [
-      { l: 'PEAK THRUST',   v: fmt(stats!.peak, 2) + ' N'             },
-      { l: 'AVG THRUST',    v: fmt(stats!.avgThrust, 2) + ' N'         },
-      { l: 'TOTAL IMPULSE', v: fmt(stats!.totalImpulse, 3) + ' N.s'   },
-      { l: 'BURN TIME',     v: fmt(stats!.burnTime5, 3) + ' s'         },
-      { l: 'TIME TO PEAK',  v: fmt(stats!.peakTime, 3) + ' s'          },
-      { l: 'EST. ISP',      v: stats!.isp + ' s'                       },
-      { l: 'AVG TEMP',      v: fmt(stats!.avgTemp, 1) + ' C'           },
-      { l: 'BURN PROFILE',  v: stats!.profileType                      },
+      { l: 'PEAK THRUST',   v: fmt(stats!.peak, 2) + ' N'           },
+      { l: 'AVG THRUST',    v: fmt(stats!.avgThrust, 2) + ' N'       },
+      { l: 'TOTAL IMPULSE', v: fmt(stats!.totalImpulse, 3) + ' N.s' },
+      { l: 'BURN TIME',     v: fmt(stats!.burnTime5, 3) + ' s'       },
+      { l: 'TIME TO PEAK',  v: fmt(stats!.peakTime, 3) + ' s'        },
+      { l: 'EST. ISP',      v: stats!.isp + ' s'                     },
+      { l: 'AVG TEMP',      v: fmt(stats!.avgTemp, 1) + ' C'         },
+      { l: 'BURN PROFILE',  v: stats!.profileType                    },
     ]
     const cW = (W - M * 2 - 9) / 4, cH = 18
     cards.forEach((c, i) => {
@@ -361,40 +384,162 @@ async function downloadReport() {
       doc.setTextColor(15, 15, 15)
       doc.text(c.v, cx + 5, cy + 14)
     })
-    y += 2 * (cH + 3) + 4
+    y += 2 * (cH + 3) + 5
 
-    const kvRow = (label: string, value: string, shade: boolean) => {
-      if (y > 270) { doc.addPage(); doc.setFillColor(255,255,255); doc.rect(0,0,W,297,'F'); y = 14 }
-      doc.setFillColor(shade ? 248 : 255, shade ? 243 : 255, shade ? 238 : 255)
-      doc.rect(M, y, W - M * 2, 6.5, 'F')
-      doc.setDrawColor(220, 200, 190)
-      doc.setLineWidth(0.2)
-      doc.line(M, y + 6.5, W - M, y + 6.5)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
-      doc.setTextColor(80, 60, 50)
-      doc.text(label, M + 3, y + 4.5)
+    // ── Thrust-Time Curve (drawn programmatically)
+    section('Thrust - Time Curve')
+    y += 3
+
+    const chartH = 55, chartW = W - M * 2
+    const padL = 14, padR = 6, padT = 4, padB = 10
+    const plotX = M + padL, plotY = y + padT
+    const plotW = chartW - padL - padR, plotH = chartH - padT - padB
+
+    // Chart background
+    doc.setFillColor(252, 248, 245)
+    doc.setDrawColor(180, 140, 120)
+    doc.setLineWidth(0.3)
+    doc.rect(M, y, chartW, chartH, 'FD')
+
+    if (burnData.length > 1) {
+      const tMin = burnData[0].t, tMax = burnData[burnData.length - 1].t
+      const fMax = Math.max(...burnData.map(d => d.force)) * 1.08
+      const tRange = tMax - tMin || 1
+
+      const tx = (t: number) => plotX + ((t - tMin) / tRange) * plotW
+      const ty = (f: number) => plotY + plotH - (f / fMax) * plotH
+
+      // Grid lines (horizontal)
+      doc.setDrawColor(210, 190, 180)
+      doc.setLineWidth(0.15)
+      for (let i = 1; i <= 4; i++) {
+        const gy = plotY + (plotH / 4) * i
+        doc.line(plotX, gy, plotX + plotW, gy)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(5.5)
+        doc.setTextColor(120, 80, 60)
+        doc.text(fmt(fMax * (1 - i / 4), 0) + 'N', plotX - 1, gy + 1, { align: 'right' })
+      }
+      // Y-axis top label
+      doc.setFontSize(5.5)
+      doc.setTextColor(120, 80, 60)
+      doc.text(fmt(fMax, 0) + 'N', plotX - 1, plotY + 2, { align: 'right' })
+
+      // Vertical grid lines (time)
+      const nTicks = Math.min(6, Math.ceil(tRange / 0.1))
+      for (let i = 1; i < nTicks; i++) {
+        const gx = plotX + (plotW / nTicks) * i
+        doc.setDrawColor(210, 190, 180)
+        doc.setLineWidth(0.15)
+        doc.line(gx, plotY, gx, plotY + plotH)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(5.5)
+        doc.setTextColor(120, 80, 60)
+        doc.text(fmt(tMin + (tRange / nTicks) * i, 2) + 's', gx, plotY + plotH + 4, { align: 'center' })
+      }
+      // Start and end time labels
+      doc.setFontSize(5.5)
+      doc.setTextColor(120, 80, 60)
+      doc.text(fmt(tMin, 2) + 's', plotX, plotY + plotH + 4, { align: 'center' })
+      doc.text(fmt(tMax, 2) + 's', plotX + plotW, plotY + plotH + 4, { align: 'center' })
+
+      // Axes
+      doc.setDrawColor(80, 50, 30)
+      doc.setLineWidth(0.4)
+      doc.line(plotX, plotY, plotX, plotY + plotH)       // Y axis
+      doc.line(plotX, plotY + plotH, plotX + plotW, plotY + plotH) // X axis
+
+      // Area fill under curve
+      const pts: number[][] = burnData.map(d => [tx(d.t), ty(d.force)])
+      doc.setFillColor(255, 160, 80)
+      doc.setDrawColor(255, 160, 80)
+      doc.setLineWidth(0)
+      // Draw filled area as polygon
+      const areaPoints: number[] = [plotX, plotY + plotH]
+      burnData.forEach(d => { areaPoints.push(tx(d.t)); areaPoints.push(ty(d.force)) })
+      areaPoints.push(plotX + plotW, plotY + plotH)
+      // jsPDF polygon
+      const polyPts = []
+      for (let i = 0; i < areaPoints.length; i += 2) polyPts.push({ x: areaPoints[i], y: areaPoints[i+1] })
+      if (polyPts.length > 2) {
+        doc.setFillColor(255, 180, 100)
+        doc.moveTo(polyPts[0].x, polyPts[0].y)
+        polyPts.slice(1).forEach(p => doc.lineTo(p.x, p.y))
+        doc.setFillColor(255, 200, 140)
+        // Simple rectangle approximation for area fill using thin lines
+        for (let i = 0; i < burnData.length - 1; i++) {
+          const x1 = tx(burnData[i].t), x2 = tx(burnData[i+1].t)
+          const y1 = ty(burnData[i].force), y2 = ty(burnData[i+1].force)
+          const baseY = plotY + plotH
+          doc.setFillColor(255, 195, 130)
+          doc.setDrawColor(255, 195, 130)
+          doc.setLineWidth(0)
+          const poly = [
+            { x: x1, y: baseY }, { x: x1, y: y1 },
+            { x: x2, y: y2 },   { x: x2, y: baseY }
+          ]
+          doc.triangle(poly[0].x, poly[0].y, poly[1].x, poly[1].y, poly[2].x, poly[2].y, 'F')
+          doc.triangle(poly[0].x, poly[0].y, poly[2].x, poly[2].y, poly[3].x, poly[3].y, 'F')
+        }
+      }
+
+      // Thrust curve line
+      doc.setDrawColor(200, 60, 5)
+      doc.setLineWidth(0.6)
+      for (let i = 0; i < pts.length - 1; i++) {
+        doc.line(pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1])
+      }
+
+      // Peak marker
+      const peakD = burnData.reduce((a, b) => b.force > a.force ? b : a)
+      const px2 = tx(peakD.t), py2 = ty(peakD.force)
+      doc.setFillColor(200, 50, 5)
+      doc.circle(px2, py2, 1.2, 'F')
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(20, 20, 20)
-      doc.text(value, W - M - 3, y + 4.5, { align: 'right' })
-      y += 6.5
+      doc.setFontSize(6)
+      doc.setTextColor(160, 30, 5)
+      doc.text(fmt(peakD.force, 1) + 'N', px2 + 2, py2 - 1)
     }
 
+    // Axis labels
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6)
+    doc.setTextColor(80, 50, 30)
+    doc.text('Thrust (N)', M + 2, y + chartH / 2, { angle: 90, align: 'center' })
+    doc.text('Time (s)', M + padL + plotW / 2, y + chartH - 1, { align: 'center' })
+
+    y += chartH + 5
+
+    // ── Full Performance Data
     section('Full Performance Data')
     y += 1
     ;[
-      ['Peak Thrust',                  fmt(stats!.peak, 3) + ' N'],
-      ['Average Thrust',               fmt(stats!.avgThrust, 3) + ' N'],
-      ['Total Impulse',                fmt(stats!.totalImpulse, 4) + ' N.s'],
-      ['Motor Class',                  stats!.motorClass],
-      ['Burn Duration (t5)',           fmt(stats!.burnTime5, 3) + ' s'],
-      ['Time to Peak Thrust',          fmt(stats!.peakTime, 3) + ' s'],
-      ['Estimated Isp (KNDX)',         stats!.isp + ' s'],
-      ['Burn Profile',                 stats!.profileType],
-      ['Load Cell Usage',              ((stats!.peak / 98.1) * 100).toFixed(1) + '% of 98.1 N'],
+      ['Peak Thrust',              fmt(stats!.peak, 3) + ' N'],
+      ['Average Thrust',           fmt(stats!.avgThrust, 3) + ' N'],
+      ['Total Impulse',            fmt(stats!.totalImpulse, 4) + ' N.s'],
+      ['Motor Class',              stats!.motorClass],
+      ['Burn Duration (t5)',       fmt(stats!.burnTime5, 3) + ' s'],
+      ['Time to Peak Thrust',      fmt(stats!.peakTime, 3) + ' s'],
+      ['Estimated Isp (KNDX)',     stats!.isp + ' s'],
+      ['Burn Profile',             stats!.profileType],
+      ['Load Cell Usage',          ((stats!.peak / 98.1) * 100).toFixed(1) + '% of 98.1 N'],
     ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
     y += 3
 
+    // ── Mass Budget
+    section('Mass Budget')
+    y += 1
+    ;[
+      ['Fuel (Propellant) Mass',   massFuel  ? massFuel  + ' g' : 'Not entered'],
+      ['Dead Body Mass',           massBody  ? massBody  + ' g' : 'Not entered'],
+      ['Final Motor Mass',         massMotor ? massMotor + ' g' : 'Not entered'],
+      ['Mass Fraction (fuel/total)', massFuel && massMotor && parseFloat(massMotor) > 0
+        ? ((parseFloat(massFuel) / parseFloat(massMotor)) * 100).toFixed(1) + '%'
+        : 'N/A'],
+    ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
+    y += 3
+
+    // ── Data Quality
     section('Data Quality & Signal Analysis')
     y += 1
     ;[
@@ -409,20 +554,6 @@ async function downloadReport() {
       ['Over-range?',           stats!.peak > 98.1
         ? 'YES - ' + fmt(stats!.peak, 1) + ' N exceeds 98.1 N'
         : 'No - ' + ((stats!.peak / 98.1) * 100).toFixed(0) + '% of range'],
-    ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
-    y += 3
-
-    section('Parameter Definitions')
-    y += 1
-    ;[
-      ['Total Impulse (J)',        'Integral F.dt - area under thrust curve, determines motor class'],
-      ['Specific Impulse (Isp)',   'J / (m0 x g0) - efficiency in seconds; higher = better'],
-      ['Average Thrust',           'J / t_burn - mean thrust over burn duration'],
-      ['Peak Thrust (Fp)',         'Maximum instantaneous thrust recorded'],
-      ['Thrust Coefficient (CF)',  'F / (Pc x At) - nozzle efficiency, typical 1.2-1.8'],
-      ['Burn Rate (r)',            'r = a x Pc^n (Vieille law) - mm/s'],
-      ['Kn (Klemmung)',            'As/At - burning-surface to throat-area ratio'],
-      ['Progressive/Neutral/Regressive', 'dF/dt trend during mid-burn defines profile type'],
     ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
 
     // Footer on every page
@@ -440,7 +571,6 @@ async function downloadReport() {
     doc.save(filename.replace('.csv', '') + '_KC_Report.pdf')
     showToast('PDF downloaded!', 'success')
   }
-
   // ─── File Handlers ────────────────────────────────────────────────────────
   function onCsvFile(file: File) {
     setFilename(file.name)
@@ -504,6 +634,25 @@ async function downloadReport() {
 
 
 
+      {/* MASS BUDGET INPUT BAR */}
+      <div className="mass-bar">
+        <span className="mass-bar-label">Mass Budget</span>
+        <div className="mass-field">
+          <label>Fuel Mass (g)</label>
+          <input type="number" min="0" step="0.1" placeholder="e.g. 52.4"
+            value={massFuel} onChange={e => setMassFuel(e.target.value)} />
+        </div>
+        <div className="mass-field">
+          <label>Dead Body Mass (g)</label>
+          <input type="number" min="0" step="0.1" placeholder="e.g. 145.0"
+            value={massBody} onChange={e => setMassBody(e.target.value)} />
+        </div>
+        <div className="mass-field">
+          <label>Final Motor Mass (g)</label>
+          <input type="number" min="0" step="0.1" placeholder="e.g. 197.4"
+            value={massMotor} onChange={e => setMassMotor(e.target.value)} />
+        </div>
+      </div>
       {/* TABS */}
       <div className="tabs">
         {[['dashboard','📊 Dashboard'],['charts','📈 Curves'],['analysis','🔬 Analysis'],['pressure','⚡ Pressure'],['report','📄 Report'],['calculator','🔧 Calculator']].map(([id, label]) => (
