@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Chart, registerables } from 'chart.js'
@@ -60,6 +60,13 @@ export default function AnalyzePage() {
   const [massFuel,  setMassFuel]  = useState('')
   const [massBody,  setMassBody]  = useState('')
   const [massMotor, setMassMotor] = useState('')
+  const [testPropellant, setTestPropellant] = useState('')
+  const [testId,         setTestId]         = useState('')
+  const [testDate,       setTestDate]       = useState('')
+  const [testOF,         setTestOF]         = useState('')
+  const [testBatch,      setTestBatch]      = useState('')
+  const [testTestedBy,   setTestTestedBy]   = useState('')
+  const [testRemarks,    setTestRemarks]    = useState('')
   const router = useRouter()
 
   async function handleLogout() {
@@ -322,6 +329,8 @@ async function downloadReport() {
 
     y = 48
 
+
+
     // ── Section header helper
     const section = (title: string) => {
       if (y > 262) { doc.addPage(); doc.setFillColor(255,255,255); doc.rect(0,0,W,297,'F'); y = 14 }
@@ -386,7 +395,21 @@ async function downloadReport() {
     })
     y += 2 * (cH + 3) + 5
 
-    // ── Thrust-Time Curve (drawn programmatically)
+    // Test Information
+    section('Test Information')
+    y += 1
+    ;[
+      ['Propellant Type', testPropellant || 'Not specified'],
+      ['Test ID',         testId         || 'Not specified'],
+      ['Test Date',       testDate       || 'Not specified'],
+      ['O:F Ratio',       testOF         || 'Not specified'],
+      ['Batch Number',    testBatch      || 'Not specified'],
+      ['Tested By',       testTestedBy   || 'Not specified'],
+      ['Remarks',         testRemarks    || '-'],
+    ].forEach((r, i) => kvRow(r[0], r[1], i % 2 === 0))
+    y += 4
+
+    // Thrust-Time Curve
     section('Thrust - Time Curve')
     y += 3
 
@@ -651,6 +674,22 @@ async function downloadReport() {
           <label>Final Motor Mass (g)</label>
           <input type="number" min="0" step="0.1" placeholder="e.g. 197.4"
             value={massMotor} onChange={e => setMassMotor(e.target.value)} />
+        </div>
+      </div>
+      {/* TEST INFO BAR */}
+      <div className='test-info-bar'>
+        <div className='tib-row'>
+          <span className='tib-label'>Test Info</span>
+          <div className='tib-field'><label>Propellant</label><input type='text' placeholder='e.g. KNDX 65/35' value={testPropellant} onChange={e => setTestPropellant(e.target.value)} /></div>
+          <div className='tib-field'><label>Test ID</label><input type='text' placeholder='e.g. Test #4' value={testId} onChange={e => setTestId(e.target.value)} /></div>
+          <div className='tib-field'><label>Date</label><input type='date' value={testDate} onChange={e => setTestDate(e.target.value)} /></div>
+          <div className='tib-field'><label>O:F Ratio</label><input type='text' placeholder='e.g. 65/35' value={testOF} onChange={e => setTestOF(e.target.value)} /></div>
+          <div className='tib-field'><label>Batch No.</label><input type='text' placeholder='e.g. B-07' value={testBatch} onChange={e => setTestBatch(e.target.value)} /></div>
+          <div className='tib-field'><label>Tested By</label><input type='text' placeholder='Engineer name' value={testTestedBy} onChange={e => setTestTestedBy(e.target.value)} /></div>
+        </div>
+        <div className='tib-row tib-remarks'>
+          <label>Remarks</label>
+          <input type='text' placeholder='Observations, conditions, anomalies...' value={testRemarks} onChange={e => setTestRemarks(e.target.value)} />
         </div>
       </div>
       {/* TABS */}

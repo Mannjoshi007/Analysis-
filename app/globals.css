@@ -480,3 +480,76 @@ canvas{width:100%!important;display:block}
   border-color:var(--orange);
 }
 
+/* ─── TEST INFO BAR ─────────────────────────────────── */
+.test-info-bar{
+  background:var(--bg3);
+  border-bottom:1px solid var(--border);
+  padding:7px 20px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.tib-row{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  flex-wrap:wrap;
+}
+.tib-label{
+  font-size:11px;
+  font-weight:600;
+  color:var(--purple);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  white-space:nowrap;
+  min-width:56px;
+}
+.tib-field{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.tib-field label{
+  font-size:11px;
+  color:var(--tx2);
+  white-space:nowrap;
+}
+.tib-field input{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:4px 8px;
+  color:var(--tx);
+  font-size:12px;
+  outline:none;
+  min-width:90px;
+}
+.tib-field input[type=date]{
+  min-width:120px;
+}
+.tib-field input:focus{
+  border-color:var(--purple);
+}
+.tib-remarks{
+  gap:8px;
+}
+.tib-remarks label{
+  font-size:11px;
+  color:var(--tx2);
+  white-space:nowrap;
+  min-width:56px;
+}
+.tib-remarks input{
+  flex:1;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:4px 10px;
+  color:var(--tx);
+  font-size:12px;
+  outline:none;
+  max-width:600px;
+}
+.tib-remarks input:focus{
+  border-color:var(--purple);
+}
