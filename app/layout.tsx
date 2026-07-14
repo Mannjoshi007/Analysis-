@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'KC DAQ — Motor Analysis Platform',
-  description: 'Analyze, store and share solid-fuel rocket motor test data from KC DAQ CSV files.',
+  title: 'Agni — Motor Analysis Platform',
+  description: 'Analyze and report solid-fuel rocket motor test data — Agni by Kailash Cosmos.',
   keywords: ['rocket motor', 'thrust curve', 'DAQ', 'motor analysis', 'KNDX', 'solid fuel'],
 }
 

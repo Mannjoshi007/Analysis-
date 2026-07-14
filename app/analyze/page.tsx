@@ -280,12 +280,12 @@ async function downloadReport() {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(22)
     doc.setTextColor(255, 255, 255)
-    doc.text('KAILASH COSMOS', M + 30, 18)
+    doc.text('KAILASH COSMOS — AGNI', M + 30, 18)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(255, 220, 200)
-    doc.text('Motor Analysis Report  -  KC DAQ System', M + 30, 25)
+    doc.text('Motor Analysis Report  —  Agni', M + 30, 25)
     doc.text('File: ' + filename + '  -  ' + new Date().toLocaleString('en-IN'), M + 30, 31)
 
     // Motor class badge — properly centred in top-right
@@ -564,10 +564,10 @@ async function downloadReport() {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(9)
       doc.setTextColor(255, 255, 255)
-      doc.text('KAILASH COSMOS', W / 2, 293.5, { align: 'center' })
+      doc.text('KAILASH COSMOS — AGNI', W / 2, 293.5, { align: 'center' })
     }
 
-    doc.save(filename.replace('.csv', '') + '_KC_Report.pdf')
+    doc.save(filename.replace('.csv', '') + '_Agni_Report.pdf')
     showToast('PDF downloaded!', 'success')
   }
   // ─── File Handlers ────────────────────────────────────────────────────────
@@ -609,7 +609,7 @@ async function downloadReport() {
       {/* HEADER */}
       <div className="hdr">
         <div className="hdr-left">
-          <span className="logo">🚀 KC DAQ <span>Motor Analysis</span></span>
+          <span className="logo">🚀 AGNI <span>Motor Analysis</span></span>
           <span className={`badge ${hasData ? 'ok' : 'warn'}`}>{hasData ? 'DATA LOADED' : 'NO DATA'}</span>
         </div>
         <div className="hdr-right">

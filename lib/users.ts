@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// KC DAQ — Allowed Users Configuration
+// Agni — Allowed Users Configuration
 // Add or remove users here. Each user gets their own email + password.
 // NEVER commit this file to a public repository if passwords are sensitive.
 // ─────────────────────────────────────────────────────────────────────────────
