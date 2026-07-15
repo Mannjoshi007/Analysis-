@@ -12,11 +12,11 @@ export interface User {
 
 export const ALLOWED_USERS: User[] = [
   // ── Add your users below ─────────────────────────────────────────────────
-  { email: 'mann@kailashcosmos.com',      password: 'KC@Admin2026',  name: 'Mann'     },
-  { email: 'harsh.engg@kailashcosmos.com',       password: 'KC#Engg7742',   name: 'Harsh25' },
-  { email: 'pruthav.sales@kailashcosmos.com',  password: 'KC#Mktg3391',   name: 'Pruthav26' },
-  { email: 'prince.marketing@kailashcosmos.com',      password: 'KC@Admin2026',  name: 'Prince25'     },
-  { email: 'yash.media@kailashcosmos.com',       password: 'KC#Engg7742',   name: 'Yash26' },
+  { email: 'mann@kailashcosmos.com',      password: 'mann07',  name: 'Joshi Mann'     },
+  { email: 'harsh.engg@kailashcosmos.com',       password: 'harsh25',   name: 'Patel Harsh' },
+  { email: 'pruthav.sales@kailashcosmos.com',  password: 'pruthav26',   name: 'Pandya Pruthav' },
+  { email: 'prince.marketing@kailashcosmos.com',      password: 'prince25',  name: 'Panchal Prince'     },
+  { email: 'yash.media@kailashcosmos.com',       password: 'yash26',   name: 'Patidar Yash' },
   // { email: 'user@example.com',          password: 'pass',          name: 'Name'      },
   // ─────────────────────────────────────────────────────────────────────────
 ]
