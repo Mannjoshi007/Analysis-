@@ -46,7 +46,7 @@ function LoginForm() {
           <h1 className="login-brand">Kailash Cosmos</h1>
           <p className="login-tagline">अन्तरिक्षं प्रति महिमा</p>
           <div className="login-divider" />
-          <p className="login-sub">Agni — Motor Analysis Platform</p>
+          <p className="login-sub">Kratu — Motor Analysis Platform</p>
         </div>
 
         {/* Form */}

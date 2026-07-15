@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     }
     const token = Buffer.from(JSON.stringify({ email: user.email, name: user.name })).toString('base64')
     const res = NextResponse.json({ ok: true, name: user.name })
-    res.cookies.set('agni_auth', token, {
+    res.cookies.set('kratu_auth', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -29,6 +29,6 @@ export async function POST(req: Request) {
 // DELETE /api/auth — clear auth cookie (logout)
 export async function DELETE() {
   const res = NextResponse.json({ ok: true })
-  res.cookies.set('agni_auth', '', { maxAge: 0, path: '/' })
+  res.cookies.set('kratu_auth', '', { maxAge: 0, path: '/' })
   return res
 }

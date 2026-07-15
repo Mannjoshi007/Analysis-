@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Agni — Allowed Users Configuration
+// Kratu — Allowed Users Configuration
 // Add or remove users here. Each user gets their own email + password.
 // NEVER commit this file to a public repository if passwords are sensitive.
 // ─────────────────────────────────────────────────────────────────────────────

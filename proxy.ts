@@ -6,7 +6,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth']
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
-  const auth = request.cookies.get('agni_auth')?.value
+  const auth = request.cookies.get('kratu_auth')?.value
 
   // Not logged in → redirect to login (except public paths)
   if (!auth && !isPublic) {
